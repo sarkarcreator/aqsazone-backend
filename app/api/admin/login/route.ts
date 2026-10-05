@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
-const VALID_PASSCODES = [process.env.ADMIN_PASSCODE, 'aqsa2026', '123456'].filter(Boolean) as string[];
+const VALID_PASSCODES = [
+  process.env.ADMIN_PASSCODE,
+  process.env.NODE_ENV !== 'production' ? 'aqsa2026' : null,
+].filter(Boolean) as string[];
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +34,11 @@ export async function POST(req: NextRequest) {
     // Check Firebase ID token
     if (idToken) {
       try {
-        const decoded = await adminAuth.verifyIdToken(idToken);
+        const auth = getAdminAuth();
+        if (!auth) {
+          return NextResponse.json({ error: 'Firebase authentication is not configured' }, { status: 503 });
+        }
+        const decoded = await auth.verifyIdToken(idToken);
         const response = NextResponse.json({
           success: true,
           user: { email: decoded.email, name: decoded.name || 'Admin', role: 'admin' },

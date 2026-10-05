@@ -1,6 +1,6 @@
 # Aqsa Zone Backend
 
-API/backend for Aqsa Zone. This repository contains Next.js route handlers, PostgreSQL/Drizzle data access, admin authentication and CORS.
+API/backend for Aqsa Zone. This repository contains Next.js route handlers, MySQL/Drizzle data access, admin authentication and CORS.
 
 ## Local development
 
@@ -19,7 +19,7 @@ http://localhost:4000
 
 ## Database
 
-The application uses PostgreSQL.
+The application uses MySQL through Drizzle ORM and `mysql2`. Set `DATABASE_URL` to a MySQL connection URL before starting the backend. The initial schema is defined in `src/db/schema.ts` and generated migrations are stored in `drizzle/`.
 
 ```bash
 npm run db:generate
@@ -28,10 +28,7 @@ npm run db:migrate
 
 Required environment variables:
 
-- `SQL_HOST`
-- `SQL_USER`
-- `SQL_PASSWORD`
-- `SQL_DB_NAME`
+- `DATABASE_URL` (MySQL connection URL, for example `mysql://user:password@db-host:3306/database`)
 
 ## Authentication
 

@@ -3,12 +3,17 @@ import { getServices, getCategories } from '@/lib/db-queries';
 import { verifyAdminRequest } from '@/lib/auth';
 import { db } from '@/src/db/index';
 import { services, activityLogs } from '@/src/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const isAdmin = searchParams.get('admin') === 'true';
     const featuredOnly = searchParams.get('featured') === 'true';
+    if (isAdmin) {
+      const { authorized } = await verifyAdminRequest(req);
+      if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const servicesList = await getServices({ publishedOnly: !isAdmin, featuredOnly });
     const categoriesList = await getCategories();
@@ -33,7 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, slug, and short description are required' }, { status: 400 });
     }
 
-    const [newService] = await db
+    const [{ id: serviceId }] = await db
       .insert(services)
       .values({
         categoryId: body.categoryId ? parseInt(body.categoryId, 10) : null,
@@ -50,7 +55,8 @@ export async function POST(req: NextRequest) {
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : true,
         sortOrder: body.sortOrder ? parseInt(body.sortOrder, 10) : 0,
       })
-      .returning();
+      .$returningId();
+    const [newService] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Created Service',

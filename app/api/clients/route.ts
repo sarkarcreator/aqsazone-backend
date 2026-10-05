@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
     }
 
-    const [client] = await db
+    const [{ id: clientId }] = await db
       .insert(clients)
       .values({
         name: body.name,
@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
         status: body.status || 'active',
         notes: body.notes,
       })
-      .returning();
+      .$returningId();
+    const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Created Client',

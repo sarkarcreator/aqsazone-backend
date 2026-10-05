@@ -22,7 +22,7 @@ export async function POST(
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
     }
 
-    const [project] = await db
+    const [{ id: projectId }] = await db
       .insert(clientProjects)
       .values({
         clientId,
@@ -34,7 +34,8 @@ export async function POST(
         startDate: body.startDate,
         endDate: body.endDate,
       })
-      .returning();
+      .$returningId();
+    const [project] = await db.select().from(clientProjects).where(eq(clientProjects.id, projectId)).limit(1);
 
     return NextResponse.json({ success: true, project });
   } catch (error) {

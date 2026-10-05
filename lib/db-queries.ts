@@ -13,7 +13,7 @@ import {
   mediaItems,
   activityLogs,
 } from '@/src/db/schema';
-import { eq, desc, asc, and, or, ilike, sql, gte, lte } from 'drizzle-orm';
+import { eq, desc, asc, and, or, like, sql, gte, lte } from 'drizzle-orm';
 
 // --- SITE SETTINGS ---
 export async function getSiteSettings(): Promise<Record<string, string>> {
@@ -36,8 +36,7 @@ export async function updateSiteSettings(settingsMap: Record<string, string>, us
       await db
         .insert(siteSettings)
         .values({ key, value: String(value), updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: siteSettings.key,
+        .onDuplicateKeyUpdate({
           set: { value: String(value), updatedAt: new Date() },
         });
     }
@@ -181,13 +180,13 @@ export async function getProjects(options?: {
       conditions.push(eq(serviceCategories.slug, options.categorySlug));
     }
     if (options?.search) {
-      const s = `%${options.search}%`;
+      const s = `%${options.search.toLowerCase()}%`;
       conditions.push(
         or(
-          ilike(projects.title, s),
-          ilike(projects.shortDescription, s),
-          ilike(projects.description, s),
-          ilike(serviceCategories.name, s)
+          like(sql`lower(${projects.title})`, s),
+          like(sql`lower(${projects.shortDescription})`, s),
+          like(sql`lower(${projects.description})`, s),
+          like(sql`lower(${serviceCategories.name})`, s)
         )
       );
     }
@@ -448,7 +447,7 @@ export async function createLead(data: {
   source?: string;
 }) {
   try {
-    const [lead] = await db
+    const [{ id: leadId }] = await db
       .insert(leads)
       .values({
         name: data.name.trim(),
@@ -465,7 +464,8 @@ export async function createLead(data: {
         priority: 'medium',
         assignedPerson: 'Aqsa',
       })
-      .returning();
+      .$returningId();
+    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'New Lead Created',
@@ -510,13 +510,13 @@ export async function getLeads(options?: {
       }
     }
     if (options?.search) {
-      const s = `%${options.search}%`;
+      const s = `%${options.search.toLowerCase()}%`;
       conditions.push(
         or(
-          ilike(leads.name, s),
-          ilike(leads.email, s),
-          ilike(leads.company, s),
-          ilike(leads.interestedService, s)
+          like(sql`lower(${leads.name})`, s),
+          like(sql`lower(${leads.email})`, s),
+          like(sql`lower(${leads.company})`, s),
+          like(sql`lower(${leads.interestedService})`, s)
         )
       );
     }
@@ -534,14 +534,14 @@ export async function getLeads(options?: {
 
 export async function updateLead(id: number, data: Partial<typeof leads.$inferInsert>, userEmail?: string) {
   try {
-    const [updated] = await db
+    await db
       .update(leads)
       .set({
         ...data,
         updatedAt: new Date(),
       })
-      .where(eq(leads.id, id))
-      .returning();
+      .where(eq(leads.id, id));
+    const [updated] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Updated Lead',
@@ -565,7 +565,7 @@ export async function convertLeadToClient(leadId: number, userEmail?: string) {
     const [existing] = await db.select().from(clients).where(eq(clients.leadId, leadId)).limit(1);
     if (existing) return existing;
 
-    const [client] = await db
+    const [{ id: clientId }] = await db
       .insert(clients)
       .values({
         leadId: lead.id,
@@ -577,7 +577,8 @@ export async function convertLeadToClient(leadId: number, userEmail?: string) {
         status: 'active',
         notes: `Converted from Lead #${lead.id}. Interested in: ${lead.interestedService || 'General'}. Budget: ${lead.budget || 'N/A'}. Message: ${lead.message}`,
       })
-      .returning();
+      .$returningId();
+    const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
 
     // Mark lead status as 'won'
     await db.update(leads).set({ status: 'won', updatedAt: new Date() }).where(eq(leads.id, leadId));

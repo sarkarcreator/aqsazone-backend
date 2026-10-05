@@ -18,7 +18,7 @@ export async function PUT(
     const testimonialId = parseInt(id, 10);
     const body = await req.json();
 
-    const [updated] = await db
+    await db
       .update(testimonials)
       .set({
         clientName: body.clientName,
@@ -30,8 +30,8 @@ export async function PUT(
         isFeatured: body.isFeatured !== undefined ? Boolean(body.isFeatured) : undefined,
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : undefined,
       })
-      .where(eq(testimonials.id, testimonialId))
-      .returning();
+      .where(eq(testimonials.id, testimonialId));
+    const [updated] = await db.select().from(testimonials).where(eq(testimonials.id, testimonialId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Updated Testimonial',
@@ -59,7 +59,8 @@ export async function DELETE(
     const { id } = await params;
     const testimonialId = parseInt(id, 10);
 
-    const [deleted] = await db.delete(testimonials).where(eq(testimonials.id, testimonialId)).returning();
+    const [deleted] = await db.select().from(testimonials).where(eq(testimonials.id, testimonialId)).limit(1);
+    await db.delete(testimonials).where(eq(testimonials.id, testimonialId));
 
     await db.insert(activityLogs).values({
       action: 'Deleted Testimonial',

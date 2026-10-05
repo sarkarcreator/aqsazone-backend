@@ -14,7 +14,7 @@ import {
   activityLogs,
   users,
 } from './schema';
-import { count } from 'drizzle-orm';
+import { asc, count, eq, inArray } from 'drizzle-orm';
 
 export async function seedDatabase() {
   console.log('Checking if database already has data...');
@@ -96,8 +96,7 @@ export async function seedDatabase() {
   ];
 
   for (const s of initialSettings) {
-    await db.insert(siteSettings).values(s).onConflictDoUpdate({
-      target: siteSettings.key,
+    await db.insert(siteSettings).values(s).onDuplicateKeyUpdate({
       set: { value: s.value },
     });
   }
@@ -117,7 +116,9 @@ export async function seedDatabase() {
     { name: 'Computer & Digital Skills Training', slug: 'skills-training', description: 'Practical 1-on-1 and team corporate workshops on digital tools, office suites, and AI adoption.', sortOrder: 11 },
   ];
 
-  const insertedCategories = await db.insert(serviceCategories).values(categoriesData).returning();
+  const categoryIds = await db.insert(serviceCategories).values(categoriesData).$returningId();
+  const insertedCategories = await db.select().from(serviceCategories)
+    .where(inArray(serviceCategories.id, categoryIds.map(({ id }) => id)));
   const categoryMap = new Map<string, number>();
   insertedCategories.forEach((c) => categoryMap.set(c.slug, c.id));
 
@@ -300,7 +301,9 @@ export async function seedDatabase() {
     }
   ];
 
-  const insertedServices = await db.insert(services).values(servicesData).returning();
+  const serviceIds = await db.insert(services).values(servicesData).$returningId();
+  const insertedServices = await db.select().from(services)
+    .where(inArray(services.id, serviceIds.map(({ id }) => id)));
   const serviceMap = new Map<string, number>();
   insertedServices.forEach((s) => serviceMap.set(s.slug, s.id));
 
@@ -404,7 +407,10 @@ export async function seedDatabase() {
     }
   ];
 
-  const insertedProjects = await db.insert(projects).values(projectsData).returning();
+  const projectIds = await db.insert(projects).values(projectsData).$returningId();
+  const insertedProjects = await db.select().from(projects)
+    .where(inArray(projects.id, projectIds.map(({ id }) => id)))
+    .orderBy(asc(projects.id));
 
   // 5. Project Media attachments
   for (const proj of insertedProjects) {
@@ -576,12 +582,14 @@ export async function seedDatabase() {
     }
   ];
 
-  const insertedLeads = await db.insert(leads).values(sampleLeads).returning();
+  const leadIds = await db.insert(leads).values(sampleLeads).$returningId();
+  const insertedLeads = await db.select().from(leads)
+    .where(inArray(leads.id, leadIds.map(({ id }) => id)));
 
   // Convert Won lead to Client
   const wonLead = insertedLeads.find((l) => l.status === 'won');
   if (wonLead) {
-    const [client] = await db.insert(clients).values({
+    const [{ id: clientId }] = await db.insert(clients).values({
       leadId: wonLead.id,
       name: wonLead.name,
       company: wonLead.company,
@@ -590,7 +598,8 @@ export async function seedDatabase() {
       whatsapp: wonLead.whatsapp,
       status: 'active',
       notes: 'Enterprise account. 3 Managing Partner LinkedIn profile revamps and 3 months content retainer.',
-    }).returning();
+    }).$returningId();
+    const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
 
     await db.insert(clientProjects).values({
       clientId: client.id,

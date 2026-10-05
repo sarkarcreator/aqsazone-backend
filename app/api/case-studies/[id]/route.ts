@@ -68,7 +68,7 @@ export async function PUT(
     const caseStudyId = parseInt(id, 10);
     const body = await req.json();
 
-    const [updated] = await db
+    await db
       .update(caseStudies)
       .set({
         title: body.title,
@@ -87,8 +87,8 @@ export async function PUT(
         isFeatured: body.isFeatured !== undefined ? Boolean(body.isFeatured) : undefined,
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : undefined,
       })
-      .where(eq(caseStudies.id, caseStudyId))
-      .returning();
+      .where(eq(caseStudies.id, caseStudyId));
+    const [updated] = await db.select().from(caseStudies).where(eq(caseStudies.id, caseStudyId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Updated Case Study',
@@ -116,7 +116,8 @@ export async function DELETE(
     const { id } = await params;
     const caseStudyId = parseInt(id, 10);
 
-    const [deleted] = await db.delete(caseStudies).where(eq(caseStudies.id, caseStudyId)).returning();
+    const [deleted] = await db.select().from(caseStudies).where(eq(caseStudies.id, caseStudyId)).limit(1);
+    await db.delete(caseStudies).where(eq(caseStudies.id, caseStudyId));
 
     await db.insert(activityLogs).values({
       action: 'Deleted Case Study',

@@ -3,11 +3,16 @@ import { getProjects } from '@/lib/db-queries';
 import { verifyAdminRequest } from '@/lib/auth';
 import { db } from '@/src/db/index';
 import { projects, projectMedia, activityLogs } from '@/src/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const isAdmin = searchParams.get('admin') === 'true';
+    if (isAdmin) {
+      const { authorized } = await verifyAdminRequest(req);
+      if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const categorySlug = searchParams.get('category') || undefined;
     const format = searchParams.get('format') || undefined;
     const sourceType = searchParams.get('sourceType') || undefined;
@@ -43,7 +48,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Title, slug, and short description are required' }, { status: 400 });
     }
 
-    const [newProject] = await db
+    const [{ id: projectId }] = await db
       .insert(projects)
       .values({
         title: body.title,
@@ -68,7 +73,8 @@ export async function POST(req: NextRequest) {
         liveUrl: body.liveUrl || null,
         externalUrl: body.externalUrl || null,
       })
-      .returning();
+      .$returningId();
+    const [newProject] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
 
     // Insert media items if provided
     if (Array.isArray(body.media) && body.media.length > 0) {

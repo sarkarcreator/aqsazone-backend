@@ -63,7 +63,7 @@ export async function PUT(
     const serviceId = parseInt(id, 10);
     const body = await req.json();
 
-    const [updated] = await db
+    await db
       .update(services)
       .set({
         categoryId: body.categoryId !== undefined ? (body.categoryId ? parseInt(body.categoryId, 10) : null) : undefined,
@@ -80,8 +80,8 @@ export async function PUT(
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : undefined,
         sortOrder: body.sortOrder !== undefined ? parseInt(body.sortOrder, 10) : undefined,
       })
-      .where(eq(services.id, serviceId))
-      .returning();
+      .where(eq(services.id, serviceId));
+    const [updated] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Updated Service',
@@ -109,7 +109,8 @@ export async function DELETE(
     const { id } = await params;
     const serviceId = parseInt(id, 10);
 
-    const [deleted] = await db.delete(services).where(eq(services.id, serviceId)).returning();
+    const [deleted] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+    await db.delete(services).where(eq(services.id, serviceId));
 
     await db.insert(activityLogs).values({
       action: 'Deleted Service',

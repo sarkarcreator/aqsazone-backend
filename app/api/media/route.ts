@@ -5,7 +5,10 @@ import { db } from '@/src/db/index';
 import { mediaItems } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { authorized } = await verifyAdminRequest(req);
+  if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const items = await getMediaItems();
     return NextResponse.json({ media: items });
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL and filename are required' }, { status: 400 });
     }
 
-    const [created] = await db
+    const [{ id: mediaId }] = await db
       .insert(mediaItems)
       .values({
         filename: body.filename,
@@ -38,7 +41,8 @@ export async function POST(req: NextRequest) {
         altText: body.altText || '',
         caption: body.caption || '',
       })
-      .returning();
+      .$returningId();
+    const [created] = await db.select().from(mediaItems).where(eq(mediaItems.id, mediaId)).limit(1);
 
     return NextResponse.json({ success: true, media: created });
   } catch (error) {

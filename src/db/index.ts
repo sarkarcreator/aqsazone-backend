@@ -1,30 +1,25 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/mysql2';
+import { createPool, type Pool } from 'mysql2/promise';
 import * as schema from './schema';
 
 declare global {
-  var _postgresPool: Pool | undefined;
+  var _mysqlPool: Pool | undefined;
 }
 
-export const createPool = () => {
-  if (!global._postgresPool) {
-    global._postgresPool = new Pool({
-      host: process.env.SQL_HOST,
-      user: process.env.SQL_USER,
-      password: process.env.SQL_PASSWORD,
-      database: process.env.SQL_DB_NAME,
-      max: 10,
-      connectionTimeoutMillis: 15000,
-    });
+const databaseUrl = process.env.DATABASE_URL;
 
-    global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
-    });
+if (!databaseUrl) {
+  throw new Error('DATABASE_URL must be set to connect to MySQL.');
+}
+
+export const getPool = (): Pool => {
+  if (!global._mysqlPool) {
+    global._mysqlPool = createPool(databaseUrl);
   }
-  return global._postgresPool;
+  return global._mysqlPool;
 };
 
-const pool = createPool();
+const pool = getPool();
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle(pool, { schema, mode: 'default' });
 export { schema };

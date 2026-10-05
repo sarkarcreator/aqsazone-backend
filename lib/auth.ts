@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 const VALID_PASSCODES = [
   process.env.ADMIN_PASSCODE,
@@ -25,7 +25,9 @@ export async function verifyAdminRequest(req: NextRequest | Request): Promise<{ 
     }
 
     try {
-      const decoded = await adminAuth.verifyIdToken(token);
+      const auth = getAdminAuth();
+      if (!auth) return { authorized: false };
+      const decoded = await auth.verifyIdToken(token);
       return { authorized: true, email: decoded.email || 'firebase-admin' };
     } catch {
       // If token verification fails

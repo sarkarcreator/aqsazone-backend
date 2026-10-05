@@ -80,7 +80,7 @@ export async function PUT(
     const projectId = parseInt(id, 10);
     const body = await req.json();
 
-    const [updated] = await db
+    await db
       .update(projects)
       .set({
         title: body.title,
@@ -105,8 +105,8 @@ export async function PUT(
         liveUrl: body.liveUrl,
         externalUrl: body.externalUrl,
       })
-      .where(eq(projects.id, projectId))
-      .returning();
+      .where(eq(projects.id, projectId));
+    const [updated] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
 
     // Replace project media if provided
     if (Array.isArray(body.media)) {
@@ -153,7 +153,8 @@ export async function DELETE(
     const { id } = await params;
     const projectId = parseInt(id, 10);
 
-    const [deleted] = await db.delete(projects).where(eq(projects.id, projectId)).returning();
+    const [deleted] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+    await db.delete(projects).where(eq(projects.id, projectId));
 
     await db.insert(activityLogs).values({
       action: 'Deleted Project',

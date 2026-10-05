@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const isAdmin = searchParams.get('admin') === 'true';
+    if (isAdmin) {
+      const { authorized } = await verifyAdminRequest(req);
+      if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const featuredOnly = searchParams.get('featured') === 'true';
 
     const list = await getCaseStudies({ publishedOnly: !isAdmin, featuredOnly });
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Title, slug, client, problem, and results are required' }, { status: 400 });
     }
 
-    const [created] = await db
+    const [{ id: caseStudyId }] = await db
       .insert(caseStudies)
       .values({
         title: body.title,
@@ -51,7 +55,8 @@ export async function POST(req: NextRequest) {
         isFeatured: Boolean(body.isFeatured),
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : true,
       })
-      .returning();
+      .$returningId();
+    const [created] = await db.select().from(caseStudies).where(eq(caseStudies.id, caseStudyId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Created Case Study',

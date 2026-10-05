@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const isAdmin = searchParams.get('admin') === 'true';
+    if (isAdmin) {
+      const { authorized } = await verifyAdminRequest(req);
+      if (!authorized) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const featuredOnly = searchParams.get('featured') === 'true';
 
     const list = await getTestimonials({ publishedOnly: !isAdmin, featuredOnly });
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Client name and testimonial are required' }, { status: 400 });
     }
 
-    const [created] = await db
+    const [{ id: testimonialId }] = await db
       .insert(testimonials)
       .values({
         clientName: body.clientName,
@@ -44,7 +48,8 @@ export async function POST(req: NextRequest) {
         isFeatured: body.isFeatured !== undefined ? Boolean(body.isFeatured) : true,
         isPublished: body.isPublished !== undefined ? Boolean(body.isPublished) : true,
       })
-      .returning();
+      .$returningId();
+    const [created] = await db.select().from(testimonials).where(eq(testimonials.id, testimonialId)).limit(1);
 
     await db.insert(activityLogs).values({
       action: 'Created Testimonial',
