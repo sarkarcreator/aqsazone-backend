@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { getPool } from '@/src/db';
+import type { RowDataPacket } from 'mysql2';
 
 const scrypt = promisify(scryptCallback);
 const SESSION_SECONDS = 60 * 60 * 12;
@@ -28,7 +29,7 @@ export async function ensureAdminTable() {
 
 export async function adminSetupNeeded() {
   await ensureAdminTable();
-  const [rows] = await getPool().query<Array<{ total: number }>>('SELECT COUNT(*) AS total FROM admin_accounts');
+  const [rows] = await getPool().query<(RowDataPacket & { total: number })[]>('SELECT COUNT(*) AS total FROM admin_accounts');
   return Number(rows[0]?.total || 0) === 0;
 }
 
@@ -73,7 +74,7 @@ export async function getAdminFromSession(token: string | undefined | null) {
   const session = readAdminSession(token);
   if (!session) return null;
   await ensureAdminTable();
-  const [rows] = await getPool().execute<Array<{ email: string; name: string }>>(
+  const [rows] = await getPool().execute<(RowDataPacket & { email: string; name: string })[]>(
     'SELECT email, name FROM admin_accounts WHERE email = ? LIMIT 1', [session.email]
   );
   const admin = rows[0];
