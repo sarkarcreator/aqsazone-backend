@@ -1,68 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth } from '@/lib/firebase-admin';
+import { ADMIN_COOKIE, createAdminSession, ensureAdminTable, verifyPassword } from '@/lib/admin-auth';
+import { getPool } from '@/src/db';
 
-const VALID_PASSCODES = [
-  process.env.ADMIN_PASSCODE,
-  process.env.NODE_ENV !== 'production' ? 'aqsa2026' : null,
-].filter(Boolean) as string[];
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { passcode, idToken } = body;
-
-    // Check passcode
-    if (passcode && VALID_PASSCODES.includes(passcode)) {
-      const response = NextResponse.json({
-        success: true,
-        user: { email: 'admin@aqsazone.com', name: 'Aqsa Admin', role: 'admin' },
-        token: passcode,
-      });
-
-      // Set cookie for session persistence
-      response.cookies.set('admin_token', passcode, {
-        httpOnly: false, // Accessible to client for header injection if needed
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-      });
-
-      return response;
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!email || !password || email.length > 320 || password.length > 1024) {
+      return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });
     }
 
-    // Check Firebase ID token
-    if (idToken) {
-      try {
-        const auth = getAdminAuth();
-        if (!auth) {
-          return NextResponse.json({ error: 'Firebase authentication is not configured' }, { status: 503 });
-        }
-        const decoded = await auth.verifyIdToken(idToken);
-        const response = NextResponse.json({
-          success: true,
-          user: { email: decoded.email, name: decoded.name || 'Admin', role: 'admin' },
-          token: idToken,
-        });
-
-        response.cookies.set('admin_token', idToken, {
-          httpOnly: false,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7,
-        });
-
-        return response;
-      } catch (err) {
-        console.error('Firebase token verification error:', err);
-        return NextResponse.json({ error: 'Invalid authentication token' }, { status: 401 });
-      }
+    await ensureAdminTable();
+    const [rows] = await getPool().execute<Array<{ email: string; name: string; password_hash: string }>>(
+      'SELECT email, name, password_hash FROM admin_accounts WHERE email = ? LIMIT 1', [email]
+    );
+    const admin = rows[0];
+    if (!admin || !(await verifyPassword(password, admin.password_hash))) {
+      return NextResponse.json({ error: 'Email or password is incorrect.' }, { status: 401 });
     }
 
-    return NextResponse.json({ error: 'Invalid passcode or credentials' }, { status: 401 });
+    const session = createAdminSession(admin.email, admin.name);
+    const response = NextResponse.json({ success: true, user: { email: admin.email, name: admin.name, role: 'admin' } });
+    response.cookies.set(ADMIN_COOKIE, session.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: session.maxAge,
+    });
+    return response;
   } catch (error) {
-    console.error('Admin login error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Admin login failed:', error);
+    return NextResponse.json({ error: 'Admin login is temporarily unavailable.' }, { status: 500 });
   }
 }
