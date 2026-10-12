@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, createAdminSession, ensureAdminTable, verifyPassword } from '@/lib/admin-auth';
 import { getPool } from '@/src/db';
+import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     await ensureAdminTable();
-    const [rows] = await getPool().execute<Array<{ email: string; name: string; password_hash: string }>>(
+    const [rows] = await getPool().execute<(RowDataPacket & { email: string; name: string; password_hash: string })[]>(
       'SELECT email, name, password_hash FROM admin_accounts WHERE email = ? LIMIT 1', [email]
     );
     const admin = rows[0];
