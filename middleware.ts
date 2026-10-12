@@ -9,6 +9,11 @@ export function middleware(request: NextRequest) {
   const origin = request.headers.get('origin');
   const response = NextResponse.next();
 
+  // Reject cross-origin state-changing requests to prevent cookie-based CSRF.
+  if (origin && !allowedOrigins.includes(origin) && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    return NextResponse.json({ error: 'Origin not allowed' }, { status: 403 });
+  }
+
   if (origin && allowedOrigins.includes(origin)) {
     response.headers.set('Access-Control-Allow-Origin', origin);
     response.headers.set('Vary', 'Origin');
