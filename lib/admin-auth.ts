@@ -5,6 +5,7 @@ import type { RowDataPacket } from 'mysql2';
 
 const scrypt = promisify(scryptCallback);
 const SESSION_SECONDS = 60 * 60 * 12;
+let adminTableReady: Promise<void> | null = null;
 
 type AdminSession = { email: string; name: string; exp: number };
 
@@ -15,16 +16,22 @@ function sessionSecret() {
 }
 
 export async function ensureAdminTable() {
-  await getPool().execute(`
-    CREATE TABLE IF NOT EXISTS admin_accounts (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(320) NOT NULL UNIQUE,
-      name VARCHAR(120) NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  `);
+  if (!adminTableReady) {
+    adminTableReady = getPool().execute(`
+      CREATE TABLE IF NOT EXISTS admin_accounts (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(320) NOT NULL UNIQUE,
+        name VARCHAR(120) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `).then(() => undefined).catch((error) => {
+      adminTableReady = null;
+      throw error;
+    });
+  }
+  return adminTableReady;
 }
 
 export async function adminSetupNeeded() {
