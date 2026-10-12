@@ -1,66 +1,47 @@
 # Aqsa Zone Backend
 
-API/backend for Aqsa Zone. This repository contains Next.js route handlers, MySQL/Drizzle data access, admin authentication and CORS.
+Next.js API for the Aqsa Zone portfolio and admin CMS. Content data and administrator credentials are stored in MySQL; Firebase Authentication is not used by the backend.
 
 ## Local development
 
-Create `.env.local` from `.env.example`, then:
+Create `.env.local` from `.env.example`, then run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-API base:
-
-```text
-http://localhost:4000
-```
+API base: `http://localhost:4000`.
 
 ## Database
 
-The application uses MySQL through Drizzle ORM and `mysql2`. Set `DATABASE_URL` to a MySQL connection URL before starting the backend. The initial schema is defined in `src/db/schema.ts` and generated migrations are stored in `drizzle/`.
+Set `DATABASE_URL` to your MySQL connection URL. Content schema migrations live in `drizzle/`.
 
 ```bash
-npm run db:generate
 npm run db:migrate
 ```
 
+The first request to `/api/admin/setup` creates the small `admin_accounts` table if needed. The setup page creates the first administrator using a scrypt password hash. A named MySQL lock prevents concurrent first-account creation; once an account exists, public setup is permanently disabled unless the account is deliberately removed from the database.
+
+## Admin authentication
+
 Required environment variables:
 
-- `DATABASE_URL` (MySQL connection URL, for example `mysql://user:password@db-host:3306/database`)
+- `DATABASE_URL`: MySQL connection URL.
+- `ADMIN_SESSION_SECRET`: unique random secret, at least 32 characters; generate with `openssl rand -base64 48`.
+- `FRONTEND_URL` or `FRONTEND_URLS`: exact frontend origin(s) allowed by CORS.
 
-## Authentication
+Open `/admin/login` on the frontend. If no admin exists, the page presents the one-time setup form. Afterwards, sign in with the admin email and password. Sessions are HMAC-signed, expire after 12 hours, and are stored in HttpOnly cookies. There is no public signup, Firebase login, default passcode, or email password-reset flow.
 
-Set a strong production `ADMIN_PASSCODE`.
+For cross-origin cookies, use HTTPS in production and configure the exact frontend origin in CORS. A custom frontend domain on the same site as the API is recommended.
 
-Firebase/Google admin login additionally requires:
+## Hostinger deployment
 
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_CLIENT_EMAIL`
-- `FIREBASE_PRIVATE_KEY`
+Deploy the repository as a Node.js Web App using a supported Node version. Set the environment variables above in hPanel. Build with `npm run build`; start with `npm start` (uses Hostinger's `PORT` when provided).
 
-## CORS
+Example API domain: `https://api.aqsazone.com`.
 
-Set `FRONTEND_URL` or comma-separated `FRONTEND_URLS` to the Vercel/custom-domain origins that are allowed to call this API.
-
-## Hostinger
-
-Build:
-
-```bash
-npm install
-npm run build
-npm start
-```
-
-Run the Node/Next process behind the backend domain, for example:
-
-```text
-https://api.aqsazone.com
-```
-
-Then configure the Vercel frontend:
+Set the frontend's Vercel environment variable:
 
 ```env
 NEXT_PUBLIC_API_URL=https://api.aqsazone.com

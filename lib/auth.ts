@@ -1,47 +1,12 @@
 import { NextRequest } from 'next/server';
-import { getAdminAuth } from '@/lib/firebase-admin';
-
-const VALID_PASSCODES = [
-  process.env.ADMIN_PASSCODE,
-  process.env.NODE_ENV !== 'production' ? 'aqsa2026' : null,
-].filter(Boolean) as string[];
+import { ADMIN_COOKIE, getAdminFromSession } from '@/lib/admin-auth';
 
 export async function verifyAdminRequest(req: NextRequest | Request): Promise<{ authorized: boolean; email?: string }> {
-  // Check authorization header
-  const authHeader = req.headers.get('authorization');
-  const adminSecretHeader = req.headers.get('x-admin-token');
+  const cookieHeader = req.headers.get('cookie') || '';
+  const cookieValue = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${ADMIN_COOKIE}=`))?.slice(ADMIN_COOKIE.length + 1);
+  const admin = await getAdminFromSession(cookieValue ? decodeURIComponent(cookieValue) : null);
+  if (admin) return { authorized: true, email: admin.email };
 
-  // Check custom admin token header
-  if (adminSecretHeader && VALID_PASSCODES.includes(adminSecretHeader)) {
-    return { authorized: true, email: 'admin@aqsazone.com' };
-  }
-
-  // Check Bearer token (can be Firebase ID token or admin passcode)
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split('Bearer ')[1].trim();
-
-    if (VALID_PASSCODES.includes(token)) {
-      return { authorized: true, email: 'admin@aqsazone.com' };
-    }
-
-    try {
-      const auth = getAdminAuth();
-      if (!auth) return { authorized: false };
-      const decoded = await auth.verifyIdToken(token);
-      return { authorized: true, email: decoded.email || 'firebase-admin' };
-    } catch {
-      // If token verification fails
-      return { authorized: false };
-    }
-  }
-
-  // Check cookies for admin_session
-  if ('cookies' in req && typeof (req as NextRequest).cookies?.get === 'function') {
-    const cookie = (req as NextRequest).cookies.get('admin_token')?.value;
-    if (cookie && VALID_PASSCODES.includes(cookie)) {
-      return { authorized: true, email: 'admin@aqsazone.com' };
-    }
-  }
-
+  // Backward compatibility is intentionally not provided: raw passcodes and Firebase ID tokens are not sessions.
   return { authorized: false };
 }
