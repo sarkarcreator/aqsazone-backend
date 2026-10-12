@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
     const session = createAdminSession(email, name);
     await ensureAdminTable();
     connection = await getPool().getConnection();
-    await connection.query("SELECT GET_LOCK('aqsazone_first_admin_setup', 10)");
+    const [lockRows] = await connection.query<(RowDataPacket & { lock_acquired: number | null })[]>("SELECT GET_LOCK('aqsazone_first_admin_setup', 10) AS lock_acquired");
+    if (Number(lockRows[0]?.lock_acquired || 0) !== 1) {
+      return NextResponse.json({ error: 'Admin setup is busy. Please retry in a moment.' }, { status: 503 });
+    }
     await connection.beginTransaction();
     const [rows] = await connection.query<(RowDataPacket & { total: number })[]>('SELECT COUNT(*) AS total FROM admin_accounts FOR UPDATE');
     if (Number(rows[0]?.total || 0) !== 0) {
