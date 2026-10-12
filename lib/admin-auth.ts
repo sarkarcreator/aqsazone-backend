@@ -31,7 +31,7 @@ export async function ensureAdminTable() {
       throw error;
     });
   }
-  return adminTableReady;
+  return adminTableReady ?? Promise.resolve();
 }
 
 export async function adminSetupNeeded() {
