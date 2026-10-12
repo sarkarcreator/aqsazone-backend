@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, adminSetupNeeded, createAdminSession, hashPassword, ensureAdminTable } from '@/lib/admin-auth';
 import { getPool } from '@/src/db';
+import type { RowDataPacket } from 'mysql2';
 
 export const runtime = 'nodejs';
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     connection = await getPool().getConnection();
     await connection.query("SELECT GET_LOCK('aqsazone_first_admin_setup', 10)");
     await connection.beginTransaction();
-    const [rows] = await connection.query<Array<{ total: number }>>('SELECT COUNT(*) AS total FROM admin_accounts FOR UPDATE');
+    const [rows] = await connection.query<(RowDataPacket & { total: number })[]>('SELECT COUNT(*) AS total FROM admin_accounts FOR UPDATE');
     if (Number(rows[0]?.total || 0) !== 0) {
       await connection.rollback();
       return NextResponse.json({ error: 'Admin setup is already complete. Use the login page.' }, { status: 409 });
