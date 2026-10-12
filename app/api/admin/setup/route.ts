@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Use at least 12 characters, including uppercase, lowercase and a number.' }, { status: 400 });
     }
 
+    const session = createAdminSession(email, name);
     await ensureAdminTable();
     connection = await getPool().getConnection();
     await connection.query("SELECT GET_LOCK('aqsazone_first_admin_setup', 10)");
@@ -40,10 +41,9 @@ export async function POST(req: NextRequest) {
     await connection.execute('INSERT INTO admin_accounts (email, name, password_hash) VALUES (?, ?, ?)', [email, name, await hashPassword(password)]);
     await connection.commit();
 
-    const session = createAdminSession(email, name);
     const response = NextResponse.json({ success: true, user: { email, name, role: 'admin' } });
     response.cookies.set(ADMIN_COOKIE, session.token, {
-      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: session.maxAge,
+      httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', path: '/', maxAge: session.maxAge,
     });
     return response;
   } catch (error) {
