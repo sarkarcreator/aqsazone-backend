@@ -17,17 +17,12 @@ import { eq, desc, asc, and, or, like, sql, gte, lte } from 'drizzle-orm';
 
 // --- SITE SETTINGS ---
 export async function getSiteSettings(): Promise<Record<string, string>> {
-  try {
-    const rows = await db.select().from(siteSettings);
-    const settings: Record<string, string> = {};
-    rows.forEach((r) => {
-      settings[r.key] = r.value;
-    });
-    return settings;
-  } catch (error) {
-    console.error('Failed to get site settings:', error);
-    return {};
-  }
+  const rows = await db.select().from(siteSettings);
+  const settings: Record<string, string> = {};
+  rows.forEach((r) => {
+    settings[r.key] = r.value;
+  });
+  return settings;
 }
 
 export async function updateSiteSettings(settingsMap: Record<string, string>, userEmail?: string) {
