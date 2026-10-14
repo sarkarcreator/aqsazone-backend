@@ -8,7 +8,28 @@ export async function GET() {
     return NextResponse.json({ settings });
   } catch (error) {
     console.error('API /api/settings GET error:', error);
-    return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
+
+    // Return a safe, actionable category without exposing database credentials or SQL.
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code || '')
+        : '';
+    const message =
+      error instanceof Error ? error.message.toLowerCase() : '';
+
+    let errorMessage = 'Website settings database query failed.';
+    if (code === 'ER_NO_SUCH_TABLE' || message.includes("doesn't exist") || message.includes('no such table')) {
+      errorMessage = 'The site_settings database table is missing. Run the backend database migrations against the production database.';
+    } else if (
+      code.startsWith('ECONN') ||
+      code === 'ETIMEDOUT' ||
+      code === 'PROTOCOL_CONNECTION_LOST' ||
+      message.includes('access denied')
+    ) {
+      errorMessage = 'The backend cannot connect to the configured database. Check the production DATABASE_URL and database permissions.';
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
