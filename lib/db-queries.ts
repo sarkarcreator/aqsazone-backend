@@ -55,7 +55,7 @@ export async function getCategories() {
     return await db.select().from(serviceCategories).orderBy(asc(serviceCategories.sortOrder));
   } catch (error) {
     console.error('Failed to get categories:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -100,7 +100,7 @@ export async function getServices(options?: { publishedOnly?: boolean; featuredO
     return await query.orderBy(asc(services.sortOrder), asc(services.id));
   } catch (error) {
     console.error('Failed to get services:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -227,7 +227,7 @@ export async function getProjects(options?: {
     return await query.orderBy(desc(projects.isFeatured), desc(projects.id));
   } catch (error) {
     console.error('Failed to get projects:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -350,7 +350,7 @@ export async function getCaseStudies(options?: { publishedOnly?: boolean; featur
     return await query.orderBy(desc(caseStudies.isFeatured), desc(caseStudies.id));
   } catch (error) {
     console.error('Failed to get case studies:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -424,7 +424,7 @@ export async function getTestimonials(options?: { publishedOnly?: boolean; featu
     return await db.select().from(testimonials).orderBy(desc(testimonials.isFeatured), desc(testimonials.id));
   } catch (error) {
     console.error('Failed to get testimonials:', error);
-    return [];
+    throw error;
   }
 }
 
