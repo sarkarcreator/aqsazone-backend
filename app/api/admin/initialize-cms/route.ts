@@ -156,14 +156,44 @@ export async function POST(req: NextRequest) {
       (await db.select({ id: serviceCategories.id, slug: serviceCategories.slug }).from(serviceCategories))
         .map((category) => [category.slug, category.id])
     );
-    const existingServices = await db.select({ slug: services.slug }).from(services);
-    const serviceSlugs = new Set(existingServices.map((service) => service.slug));
+    const existingServices = await db.select({
+      id: services.id,
+      slug: services.slug,
+      categoryId: services.categoryId,
+      icon: services.icon,
+      shortDescription: services.shortDescription,
+      fullDescription: services.fullDescription,
+      features: services.features,
+      process: services.process,
+      faqs: services.faqs,
+    }).from(services);
+    const existingServicesBySlug = new Map(existingServices.map((service) => [service.slug, service]));
     let servicesAdded = 0;
+    let servicesBackfilled = 0;
 
     for (const service of initialServices) {
-      if (serviceSlugs.has(service.slug)) continue;
       const categoryId = categoriesBySlug.get(service.categorySlug);
       if (!categoryId) continue;
+      const existing = existingServicesBySlug.get(service.slug);
+
+      if (existing) {
+        // Repair records created earlier with only a title/slug. Preserve any non-empty admin-authored content.
+        const updates: Partial<typeof services.$inferInsert> = {};
+        if (!existing.categoryId) updates.categoryId = categoryId;
+        if (!existing.icon || existing.icon === 'Sparkles') updates.icon = service.icon;
+        if (!existing.shortDescription?.trim()) updates.shortDescription = service.shortDescription;
+        if (!existing.fullDescription?.trim()) updates.fullDescription = service.fullDescription;
+        if (!Array.isArray(existing.features) || existing.features.length === 0) updates.features = service.features;
+        if (!Array.isArray(existing.process) || existing.process.length === 0) updates.process = service.process;
+        if (!Array.isArray(existing.faqs) || existing.faqs.length === 0) updates.faqs = service.faqs;
+
+        if (Object.keys(updates).length > 0) {
+          await db.update(services).set(updates).where(eq(services.id, existing.id));
+          servicesBackfilled += 1;
+        }
+        continue;
+      }
+
       const { categorySlug: _categorySlug, ...serviceValues } = service;
       await db.insert(services).values({
         ...serviceValues,
@@ -187,7 +217,7 @@ export async function POST(req: NextRequest) {
 
     await db.insert(activityLogs).values({
       action: 'Initialized CMS defaults',
-      details: `Added ${categoriesAdded} missing categories, ${servicesAdded} missing service entries, and ${settingsAdded} missing website settings; existing values preserved.`,
+      details: `Added ${categoriesAdded} missing categories, ${servicesAdded} missing service entries, backfilled ${servicesBackfilled} incomplete service entries, and added ${settingsAdded} missing website settings; existing non-empty service content preserved.`,
       userEmail: email || 'admin',
     });
 
@@ -200,6 +230,7 @@ export async function POST(req: NextRequest) {
       categoriesAdded,
       categoriesTotal: categories.length,
       servicesAdded,
+      servicesBackfilled,
       servicesTotal: allServices.length,
       settingsAdded,
       settingsTotal: settings.length,
