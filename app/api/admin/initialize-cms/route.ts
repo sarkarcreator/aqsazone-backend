@@ -291,7 +291,9 @@ export async function POST(req: NextRequest) {
       servicesAdded,
       servicesBackfilled,
       servicesTotal: allServices.length,
-      caseStudiesAdded,\n      caseStudiesTotal: (await db.select({ id: caseStudies.id }).from(caseStudies)).length,\n      settingsAdded,
+      caseStudiesAdded,
+      caseStudiesTotal: (await db.select({ id: caseStudies.id }).from(caseStudies)).length,
+      settingsAdded,
       settingsTotal: settings.length,
     });
   } catch (error) {
