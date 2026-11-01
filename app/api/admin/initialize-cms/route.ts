@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminRequest } from '@/lib/auth';
 import { db } from '@/src/db/index';
-import { activityLogs, serviceCategories, services, siteSettings } from '@/src/db/schema';
+import { activityLogs, caseStudies, serviceCategories, services, siteSettings } from '@/src/db/schema';
 import { eq } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
@@ -105,6 +105,54 @@ const initialServices = [
   },
 ];
 
+
+ // Unpublished service-showcase drafts. These describe service scope only; they are not
+ // presented as completed client engagements or measured campaign outcomes.
+const initialCaseStudies = [
+  {
+    title: 'SEO Optimization — Website Search Foundations',
+    slug: 'aqsa-seo-optimization-foundations',
+    clientBusiness: 'Aqsa Zone — Internal Service Showcase (Draft)',
+    problem: 'A business website needs a clear search-friendly structure so visitors and search engines can understand its pages, services, and purpose. The exact baseline and any historic ranking data must be confirmed before this draft is published.',
+    objectives: 'Document the SEO workstream: technical and on-page review, page titles and descriptions, heading hierarchy, internal linking, indexability checks, and useful page content.',
+    strategy: 'Prioritize foundational SEO rather than promise rankings. Review each important page, map its search intent, improve metadata and content structure, and validate indexability with available webmaster tools.',
+    workPerformed: 'Draft scope for the Aqsa Zone website showcase: review page structure, prepare unique metadata, organize headings and internal links, check crawl and indexing signals, and identify content improvements. Admin must confirm which items have actually been completed before publication.',
+    tools: 'Website CMS, Google Search Console (if connected), Google Analytics (if connected), browser-based SEO review tools.',
+    implementation: 'Work through a page-by-page checklist. Record the pages reviewed, changes deployed, date of implementation, and any Search Console evidence before marking this case study publish-ready.',
+    results: 'No ranking, traffic, impression, or conversion increase is claimed in this draft. Add only dated figures supported by Aqsa Zone analytics or Search Console exports after verification.',
+    isFeatured: false,
+    isPublished: false,
+  },
+  {
+    title: 'Website Content — Copywriting & Page Structure',
+    slug: 'aqsa-website-content-copywriting',
+    clientBusiness: 'Aqsa Zone — Internal Service Showcase (Draft)',
+    problem: 'Website visitors need concise, accurate information about the business, its services, and the next step they can take. Content must reflect the actual offering and avoid unsupported claims.',
+    objectives: 'Document the content workstream: page messaging, service descriptions, clear calls to action, consistent tone, readability, and alignment between page copy and the services actually offered.',
+    strategy: 'Build content around visitor questions and page intent. Use clear headings, concise paragraphs, specific service explanations, and calls to action that match the available contact or inquiry flow.',
+    workPerformed: 'Draft scope for the Aqsa Zone website showcase: organize page copy, prepare service-description structure, refine headings and calls to action, and review consistency across key pages. Confirm the final live pages and approved copy before publication.',
+    tools: 'Website CMS, document editor, keyword and content research tools where applicable.',
+    implementation: 'Maintain a content review sheet containing page URL, copy owner, approval status, publication date, and the final approved version. Attach real page screenshots or links when available.',
+    results: 'This draft makes no claim about increased engagement, leads, or sales. Add verified outcomes only when supported by analytics, inquiry records, or an approved client statement.',
+    isFeatured: false,
+    isPublished: false,
+  },
+  {
+    title: 'Digital Advertising — Campaign Setup & Management',
+    slug: 'aqsa-digital-advertising-campaign-management',
+    clientBusiness: 'Aqsa Zone — Internal Service Showcase (Draft)',
+    problem: 'Paid campaigns require a defined objective, suitable audience, approved creative, landing page, budget, and measurement plan. Without account records and campaign reports, performance cannot be represented as a real result.',
+    objectives: 'Document the advertising workstream: campaign objective, audience definition, creative and copy preparation, landing-page alignment, tracking checks, budget controls, and reporting.',
+    strategy: 'Start with a written campaign brief and conversion goal. Verify platform access and tracking, prepare creative variants, set a controlled budget, and monitor delivery against agreed metrics without guaranteeing outcomes.',
+    workPerformed: 'Draft scope for the Aqsa Zone showcase: campaign planning, audience research, ad copy and creative coordination, landing-page review, pixel or conversion-event checks where configured, and performance reporting. Confirm platform, account, campaign dates, spend, and actual deliverables before publication.',
+    tools: 'Meta Ads Manager and/or Google Ads only where an actual account and campaign were used; analytics and conversion tracking tools where configured.',
+    implementation: 'Attach campaign IDs or report exports, approved creatives, landing-page URLs, date range, spend, and tracked conversion definitions. Remove any platform or tracking item that was not actually used.',
+    results: 'No impressions, clicks, leads, ROAS, revenue, or cost-per-result figures are claimed in this draft. Populate metrics only from the original ad-platform reports and clearly state the reporting period.',
+    isFeatured: false,
+    isPublished: false,
+  },
+];
+
 // Keep contact details and social URLs blank until the owner supplies verified values.
 // Only create missing keys; never overwrite anything already saved by the admin.
 const initialSettings: Record<string, string> = {
@@ -205,6 +253,17 @@ export async function POST(req: NextRequest) {
       servicesAdded += 1;
     }
 
+
+    const existingCaseStudies = await db.select({ id: caseStudies.id, slug: caseStudies.slug }).from(caseStudies);
+    const caseStudySlugs = new Set(existingCaseStudies.map((item) => item.slug));
+    let caseStudiesAdded = 0;
+
+    for (const draft of initialCaseStudies) {
+      if (caseStudySlugs.has(draft.slug)) continue;
+      await db.insert(caseStudies).values(draft);
+      caseStudiesAdded += 1;
+    }
+
     const existingSettings = await db.select({ key: siteSettings.key }).from(siteSettings);
     const settingKeys = new Set(existingSettings.map((setting) => setting.key));
     let settingsAdded = 0;
@@ -217,7 +276,7 @@ export async function POST(req: NextRequest) {
 
     await db.insert(activityLogs).values({
       action: 'Initialized CMS defaults',
-      details: `Added ${categoriesAdded} missing categories, ${servicesAdded} missing service entries, backfilled ${servicesBackfilled} incomplete service entries, and added ${settingsAdded} missing website settings; existing non-empty service content preserved.`,
+      details: `Added ${categoriesAdded} missing categories, ${servicesAdded} missing service entries, backfilled ${servicesBackfilled} incomplete service entries, added ${caseStudiesAdded} unpublished internal case-study drafts, and added ${settingsAdded} missing website settings; existing non-empty service content preserved.`,
       userEmail: email || 'admin',
     });
 
@@ -232,7 +291,7 @@ export async function POST(req: NextRequest) {
       servicesAdded,
       servicesBackfilled,
       servicesTotal: allServices.length,
-      settingsAdded,
+      caseStudiesAdded,\n      caseStudiesTotal: (await db.select({ id: caseStudies.id }).from(caseStudies)).length,\n      settingsAdded,
       settingsTotal: settings.length,
     });
   } catch (error) {
